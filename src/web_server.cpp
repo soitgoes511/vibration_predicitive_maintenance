@@ -137,7 +137,6 @@ void WebServer::_setupRoutes() {
 </head>
 <body>
     <h1>🔧 Vibration Sensor</h1>
-    <div class="warn">⚠️ Web UI files not found. Using basic setup page.</div>
     
     <form id="setupForm">
         <div class="card">
