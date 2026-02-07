@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <title>Vibration Sensor Configuration</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🔧 Vibration Sensor</h1>
+            <div id="device-id" class="device-id">Loading...</div>
+        </header>
+
+        <div id="status-banner" class="status-banner hidden">
+            <span id="status-text"></span>
+        </div>
+
+        <main>
+            <!-- Status Panel -->
+            <section class="card status-card">
+                <h2>📊 Status</h2>
+                <div class="status-grid">
+                    <div class="status-item">
+                        <span class="label">WiFi</span>
+                        <span id="wifi-status" class="value">--</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="label">IP Address</span>
+                        <span id="ip-address" class="value">--</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="label">Signal</span>
+                        <span id="wifi-rssi" class="value">--</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="label">Triggers</span>
+                        <span id="trigger-count" class="value">0</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="label">InfluxDB</span>
+                        <span id="influx-status" class="value">--</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="label">Free Memory</span>
+                        <span id="free-heap" class="value">--</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- WiFi Configuration -->
+            <section class="card">
+                <h2>📶 WiFi Settings</h2>
+                <div class="form-group">
+                    <label for="wifi-ssid">Network Name (SSID)</label>
+                    <input type="text" id="wifi-ssid" placeholder="Enter WiFi network name">
+                </div>
+                <div class="form-group">
+                    <label for="wifi-password">Password</label>
+                    <input type="password" id="wifi-password" placeholder="Enter WiFi password">
+                    <small>Leave blank to keep existing password</small>
+                </div>
+            </section>
+
+            <!-- InfluxDB Configuration -->
+            <section class="card">
+                <h2>📈 InfluxDB Settings</h2>
+                <div class="form-group">
+                    <label for="influx-url">Server URL</label>
+                    <input type="text" id="influx-url" placeholder="http://192.168.1.100:8086">
+                </div>
+                <div class="form-group">
+                    <label for="influx-token">API Token</label>
+                    <input type="password" id="influx-token" placeholder="Enter InfluxDB token">
+                    <small>Leave blank to keep existing token</small>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="influx-org">Organization</label>
+                        <input type="text" id="influx-org" placeholder="my-org">
+                    </div>
+                    <div class="form-group">
+                        <label for="influx-bucket">Bucket</label>
+                        <input type="text" id="influx-bucket" placeholder="my-bucket">
+                    </div>
+                </div>
+                <button type="button" id="btn-test-influx" class="btn btn-secondary">
+                    🔗 Test Connection
+                </button>
+            </section>
+
+            <!-- Operation Settings -->
+            <section class="card">
+                <h2>🏭 Operation Settings</h2>
+                <div class="form-group">
+                    <label for="operation-id">Operation ID</label>
+                    <input type="text" id="operation-id" placeholder="L9OP600">
+                    <small>Equipment operation identifier for data tagging</small>
+                </div>
+            </section>
+
+            <!-- Hardware Configuration -->
+            <section class="card">
+                <h2>🔌 Hardware Settings</h2>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="plc-trigger-pin">PLC Trigger Pin (GPIO)</label>
+                        <input type="number" id="plc-trigger-pin" min="0" max="39" value="4">
+                    </div>
+                    <div class="form-group">
+                        <label for="spi-cs-pin">SPI CS Pin (GPIO)</label>
+                        <input type="number" id="spi-cs-pin" min="0" max="39" value="5">
+                    </div>
+                </div>
+            </section>
+
+            <!-- Sensor Settings -->
+            <section class="card">
+                <h2>📐 Sensor Settings</h2>
+                <div class="form-group">
+                    <label for="sensitivity">Sensitivity Range</label>
+                    <select id="sensitivity">
+                        <option value="0">±0.5g (High resolution)</option>
+                        <option value="1">±1g</option>
+                        <option value="2" selected>±2g (Default)</option>
+                        <option value="3">±4g (High amplitude)</option>
+                    </select>
+                    <small>Lower range = higher resolution, higher range = larger vibrations</small>
+                </div>
+            </section>
+
+            <!-- Sampling Settings -->
+            <section class="card">
+                <h2>⏱️ Sampling Settings</h2>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="sample-count">Sample Count</label>
+                        <input type="number" id="sample-count" min="512" max="8000" step="512" value="4000">
+                    </div>
+                    <div class="form-group">
+                        <label for="sample-rate">Sample Rate (Hz)</label>
+                        <input type="number" id="sample-rate" min="100" max="3200" value="3200" readonly>
+                        <small>Fixed at 3200 Hz (ADXL313 max)</small>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="filter-cutoff">Filter Cutoff (Hz)</label>
+                    <input type="number" id="filter-cutoff" min="100" max="1600" value="1600">
+                    <small>Butterworth low-pass filter cutoff frequency</small>
+                </div>
+                <div class="form-group checkbox-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="send-time-domain">
+                        <span>Send time-domain data to InfluxDB</span>
+                    </label>
+                    <small>Increases data volume significantly. Disable to save bandwidth.</small>
+                </div>
+            </section>
+
+            <!-- Actions -->
+            <section class="card actions">
+                <button type="button" id="btn-save" class="btn btn-primary">
+                    💾 Save Configuration
+                </button>
+                <button type="button" id="btn-trigger" class="btn btn-success">
+                    ▶️ Manual Trigger
+                </button>
+                <button type="button" id="btn-reset" class="btn btn-danger">
+                    🔄 Factory Reset
+                </button>
+            </section>
+        </main>
+
+        <footer>
+            <p>Vibration Predictive Maintenance Sensor</p>
+            <p>ESP32-WROOM-32 + ADXL313</p>
+        </footer>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
