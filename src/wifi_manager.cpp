@@ -1,8 +1,15 @@
 #include "wifi_manager.h"
 #include "config_manager.h"
+#include <time.h>
 
 // DNS server port
 static const uint16_t DNS_PORT = 53;
+static const time_t MIN_VALID_EPOCH = 1700000000;   // Approx. 2023-11-14 UTC
+static const uint32_t TIME_SYNC_RETRY_MS = 30000;
+
+static bool isSystemTimeValid() {
+    return time(nullptr) >= MIN_VALID_EPOCH;
+}
 
 // Global instance
 WiFiManager wifiManager;
@@ -13,6 +20,8 @@ void WiFiManager::begin() {
     
     Serial.println("[WiFi] Initializing...");
     
+    _timeSynced = isSystemTimeValid();
+
     // Check if WiFi is configured
     if (configManager.isWifiConfigured()) {
         DeviceConfig& cfg = configManager.getConfig();
@@ -81,6 +90,7 @@ void WiFiManager::_handleConnection() {
                 Serial.printf("[WiFi] Connected! IP: %s\n", WiFi.localIP().toString().c_str());
                 Serial.printf("[WiFi] RSSI: %d dBm\n", WiFi.RSSI());
                 _state = State::CONNECTED_STATION;
+                _syncTimeIfNeeded();
             } else if (millis() - _connectStartTime > WIFI_CONNECT_TIMEOUT_MS) {
                 _connectAttempts++;
                 Serial.printf("[WiFi] Connection timeout (attempt %d/%d)\n", 
@@ -106,6 +116,8 @@ void WiFiManager::_handleConnection() {
                 _connectStartTime = millis();
                 _connectAttempts = 0;
                 WiFi.reconnect();
+            } else if (!hasValidTime() && (millis() - _lastTimeSyncAttemptMs) > TIME_SYNC_RETRY_MS) {
+                _syncTimeIfNeeded();
             }
             break;
             
@@ -156,4 +168,53 @@ bool WiFiManager::isConnected() const {
 
 bool WiFiManager::isAPMode() const {
     return _state == State::AP_MODE;
+}
+
+bool WiFiManager::hasValidTime() const {
+    return isSystemTimeValid();
+}
+
+bool WiFiManager::syncTime(uint32_t timeoutMs) {
+    if (_state != State::CONNECTED_STATION || WiFi.status() != WL_CONNECTED) {
+        return false;
+    }
+
+    if (hasValidTime()) {
+        _timeSynced = true;
+        return true;
+    }
+
+    if (!_ntpConfigured) {
+        configTzTime("UTC0", "pool.ntp.org", "time.google.com", "time.windows.com");
+        _ntpConfigured = true;
+        Serial.println("[WiFi] SNTP configured");
+    }
+
+    _lastTimeSyncAttemptMs = millis();
+
+    struct tm timeinfo;
+    if (getLocalTime(&timeinfo, timeoutMs)) {
+        _timeSynced = true;
+        Serial.printf("[WiFi] Time synchronized: %04d-%02d-%02d %02d:%02d:%02d UTC\n",
+                      timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday,
+                      timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec);
+        return true;
+    }
+
+    _timeSynced = hasValidTime();
+    if (!_timeSynced) {
+        Serial.println("[WiFi] SNTP sync not ready yet");
+    }
+    return _timeSynced;
+}
+
+void WiFiManager::_syncTimeIfNeeded() {
+    if (_state != State::CONNECTED_STATION) {
+        return;
+    }
+    if (hasValidTime()) {
+        _timeSynced = true;
+        return;
+    }
+    syncTime();
 }

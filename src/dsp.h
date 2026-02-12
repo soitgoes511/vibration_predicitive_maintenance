@@ -47,7 +47,7 @@ public:
      * Computes single-sided amplitude spectrum from real input data.
      * @param input Input time-domain data (will be modified!)
      * @param output Output frequency-domain magnitudes
-     * @param len Number of input samples (must be power of 2)
+     * @param len Number of input samples (zero-padded internally to next power of 2)
      * @param sampleRateHz Sample rate for frequency calculation
      * @return Number of frequency bins (len/2 + 1)
      */

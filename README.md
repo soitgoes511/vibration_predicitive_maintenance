@@ -119,14 +119,22 @@ pio run --target uploadfs
 ### Frequency Domain (`accelfreq` measurement)
 
 ```
-accelfreq,operation=L9OP600,run_id=12345678 frequencies=100.0,x_freq=0.0123,y_freq=0.0045,z_freq=0.0067 1234567890000000000
+accelfreq,operation=L9OP600,device_id=6A4F,run_id=6A4F-1739356800-42 frequencies=100.0,x_freq=0.0123,y_freq=0.0045,z_freq=0.0067 1739356800001000000
 ```
 
 ### Time Domain (`acceltime` measurement)
 
 ```
-acceltime,operation=L9OP600,run_id=12345678 x=0.123,y=0.456,z=0.789 1234567890000000000
+acceltime,operation=L9OP600,device_id=6A4F,run_id=6A4F-1739356800-42 x=0.123,y=0.456,z=0.789 1739356800000000000
 ```
+
+### Run Metadata (`accelrunmeta` measurement)
+
+```
+accelrunmeta,operation=L9OP600,device_id=6A4F,run_id=6A4F-1739356800-42 sample_rate_hz=3200i,sample_count=4000i,fft_size=4096i,filter_cutoff_hz=1600i,range_g=2.000,send_time_domain=false,window="hann",fw="1.1.0" 1739356800000000000
+```
+
+`run_id` format is now `<device_id>-<epoch_seconds>-<sequence>`, and timestamps use SNTP-synchronized epoch nanoseconds.
 
 ## 🔧 API Endpoints
 

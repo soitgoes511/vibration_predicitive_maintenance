@@ -46,7 +46,8 @@ public:
     /**
      * @brief Write frequency domain data batch
      * @param operationId Operation identifier for tagging
-     * @param runId Run timestamp identifier
+     * @param deviceId Unique device identifier
+     * @param runId Run identifier
      * @param frequencies Array of frequency values
      * @param xFreq Array of X-axis frequency magnitudes
      * @param yFreq Array of Y-axis frequency magnitudes
@@ -55,7 +56,7 @@ public:
      * @param baseTimestampNs Base timestamp in nanoseconds
      * @return true if write successful
      */
-    bool writeFrequencyData(const char* operationId, const char* runId,
+    bool writeFrequencyData(const char* operationId, const char* deviceId, const char* runId,
                             const float* frequencies,
                             const float* xFreq, const float* yFreq, const float* zFreq,
                             size_t numBins, uint64_t baseTimestampNs);
@@ -63,7 +64,8 @@ public:
     /**
      * @brief Write time domain data batch
      * @param operationId Operation identifier for tagging
-     * @param runId Run timestamp identifier
+     * @param deviceId Unique device identifier
+     * @param runId Run identifier
      * @param x Array of X-axis acceleration values
      * @param y Array of Y-axis acceleration values
      * @param z Array of Z-axis acceleration values
@@ -72,10 +74,19 @@ public:
      * @param sampleRateHz Sample rate for timestamp calculation
      * @return true if write successful
      */
-    bool writeTimeData(const char* operationId, const char* runId,
+    bool writeTimeData(const char* operationId, const char* deviceId, const char* runId,
                        const float* x, const float* y, const float* z,
                        size_t numSamples, uint64_t baseTimestampNs, 
                        float sampleRateHz);
+
+    /**
+     * @brief Write run-level metadata for downstream ML traceability
+     */
+    bool writeRunMetadata(const char* operationId, const char* deviceId, const char* runId,
+                          uint16_t sampleRateHz, uint16_t sampleCount, size_t fftSize,
+                          uint16_t filterCutoffHz, float rangeG,
+                          bool sendTimeDomain, const char* firmwareVersion,
+                          uint64_t timestampNs);
     
     /**
      * @brief Get last error message

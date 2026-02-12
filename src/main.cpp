@@ -28,6 +28,7 @@
 #include "adxl313.h"
 #include "dsp.h"
 #include "influxdb_client.h"
+#include <sys/time.h>
 
 // ============================================================================
 // Global State
@@ -48,7 +49,36 @@ float* fftZ = nullptr;
 size_t currentSampleCount = 0;
 
 // Run ID for InfluxDB
-char runId[32];
+char runId[64];
+uint32_t runSequence = 0;
+uint64_t lastUploadTimestampNs = 0;
+
+static constexpr const char* FW_VERSION = "1.1.0";
+
+static bool getCurrentEpochTimestampNs(uint64_t& timestampNs) {
+    struct timeval tv;
+    if (gettimeofday(&tv, nullptr) != 0) {
+        return false;
+    }
+
+    // Reject invalid/unsynced RTC values.
+    if (tv.tv_sec < 1700000000) {
+        return false;
+    }
+
+    timestampNs = (uint64_t)tv.tv_sec * 1000000000ULL + (uint64_t)tv.tv_usec * 1000ULL;
+    return true;
+}
+
+static float getRangeGFromSensitivity(uint8_t sensitivity) {
+    switch (sensitivity) {
+        case ADXL313_RANGE_0_5G: return 0.5f;
+        case ADXL313_RANGE_1G:   return 1.0f;
+        case ADXL313_RANGE_2G:   return 2.0f;
+        case ADXL313_RANGE_4G:   return 4.0f;
+        default:                 return 2.0f;
+    }
+}
 
 // ============================================================================
 // ISR: PLC Trigger
@@ -198,9 +228,12 @@ void processData() {
     
     free(tempBuffer);
     
+    size_t fftSize = DSP::nextPowerOf2(currentSampleCount);
+
     // Calculate frequency values for each bin
     for (size_t i = 0; i < numBins; i++) {
-        freqBins[i] = DSP::binToFrequency(i, currentSampleCount, cfg.sample_rate_hz);
+        // Use actual FFT length (after zero-padding), not raw sample count.
+        freqBins[i] = DSP::binToFrequency(i, fftSize, cfg.sample_rate_hz);
     }
     
     unsigned long processingTime = millis() - startTime;
@@ -226,22 +259,55 @@ void uploadData() {
     
     Serial.println("[Main] Uploading data to InfluxDB...");
     unsigned long startTime = millis();
-    
-    // Generate run ID timestamp
-    snprintf(runId, sizeof(runId), "%lu", lastTriggerTime);
+
+    if (!wifiManager.hasValidTime()) {
+        Serial.println("[Main] Time not synchronized, attempting SNTP sync...");
+        if (!wifiManager.syncTime()) {
+            Serial.println("[Main] SNTP time unavailable, skipping upload");
+            webServer.updateStatus(lastTriggerTime, currentSampleCount, false);
+            return;
+        }
+    }
+
+    uint64_t baseTimestampNs = 0;
+    if (!getCurrentEpochTimestampNs(baseTimestampNs)) {
+        Serial.println("[Main] Failed to read epoch timestamp, skipping upload");
+        webServer.updateStatus(lastTriggerTime, currentSampleCount, false);
+        return;
+    }
+
+    // Guarantee strictly increasing run timestamps to avoid collisions.
+    if (baseTimestampNs <= lastUploadTimestampNs) {
+        baseTimestampNs = lastUploadTimestampNs + 1;
+    }
+    lastUploadTimestampNs = baseTimestampNs;
+
+    String deviceId = configManager.getDeviceId();
+    runSequence++;
+    snprintf(runId, sizeof(runId), "%s-%llu-%lu",
+             deviceId.c_str(),
+             (unsigned long long)(baseTimestampNs / 1000000000ULL),
+             (unsigned long)runSequence);
+    Serial.printf("[Main] Run ID: %s\n", runId);
     
     // Calculate number of frequency bins
     size_t fftSize = DSP::nextPowerOf2(currentSampleCount);
     size_t numBins = fftSize / 2 + 1;
     
-    // Base timestamp in nanoseconds (approximate, using millis)
-    uint64_t baseTimestampNs = (uint64_t)lastTriggerTime * 1000000ULL;
-    
     bool success = true;
+
+    // Upload run metadata first for traceability
+    success &= influxClient.writeRunMetadata(
+        cfg.operation_id, deviceId.c_str(), runId,
+        cfg.sample_rate_hz, currentSampleCount, fftSize,
+        cfg.filter_cutoff_hz, getRangeGFromSensitivity(cfg.sensitivity),
+        cfg.send_time_domain, FW_VERSION,
+        baseTimestampNs
+    );
     
     // Upload frequency domain data
     success &= influxClient.writeFrequencyData(
-        cfg.operation_id, runId,
+        cfg.operation_id, deviceId.c_str(), runId,
         freqBins, fftX, fftY, fftZ,
         numBins, baseTimestampNs
     );
@@ -249,7 +315,7 @@ void uploadData() {
     // Optionally upload time domain data
     if (cfg.send_time_domain) {
         success &= influxClient.writeTimeData(
-            cfg.operation_id, runId,
+            cfg.operation_id, deviceId.c_str(), runId,
             bufferX, bufferY, bufferZ,
             currentSampleCount, baseTimestampNs,
             cfg.sample_rate_hz

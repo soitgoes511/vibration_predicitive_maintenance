@@ -370,6 +370,7 @@ void WebServer::_handleGetStatus(AsyncWebServerRequest* request) {
     doc["wifi_ap_mode"] = wifiManager.isAPMode();
     doc["wifi_ip"] = wifiManager.getIP();
     doc["wifi_rssi"] = wifiManager.getRSSI();
+    doc["time_synced"] = wifiManager.hasValidTime();
     
     doc["influx_configured"] = configManager.isInfluxConfigured();
     doc["influx_last_ok"] = _lastInfluxOk;

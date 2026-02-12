@@ -2,6 +2,20 @@
 #include "config.h"
 #include <WiFi.h>
 
+static String escapeTagValue(const char* raw) {
+    String out;
+    if (!raw) return out;
+
+    for (size_t i = 0; raw[i] != '\0'; i++) {
+        char c = raw[i];
+        if (c == ',' || c == '=' || c == ' ') {
+            out += '\\';
+        }
+        out += c;
+    }
+    return out;
+}
+
 // Global instance
 InfluxDBClient influxClient;
 
@@ -110,14 +124,16 @@ bool InfluxDBClient::writePoint(const char* measurement, const char* tags,
     
     if (timestampNs > 0) {
         line += " ";
-        line += String((uint32_t)(timestampNs / 1000000000ULL));  // Seconds
-        line += String((uint32_t)(timestampNs % 1000000000ULL));  // Nanoseconds
+        char timestamp[32];
+        snprintf(timestamp, sizeof(timestamp), "%llu", (unsigned long long)timestampNs);
+        line += timestamp;
     }
     
     return _sendLineProtocol(line);
 }
 
-bool InfluxDBClient::writeFrequencyData(const char* operationId, const char* runId,
+bool InfluxDBClient::writeFrequencyData(const char* operationId, const char* deviceId,
+                                        const char* runId,
                                         const float* frequencies,
                                         const float* xFreq, const float* yFreq, 
                                         const float* zFreq, size_t numBins,
@@ -131,17 +147,21 @@ bool InfluxDBClient::writeFrequencyData(const char* operationId, const char* run
     size_t batchCount = 0;
     uint64_t timestampIncrement = 1000000;  // 1ms between "points" for visualization
     
+    String operationTag = escapeTagValue(operationId);
+    String deviceTag = escapeTagValue(deviceId);
+    String runTag = escapeTagValue(runId);
+
     for (size_t i = 0; i < numBins; i++) {
         // Skip DC component (i=0) as in Python code
         if (i == 0) continue;
         
         // measurement,tags fields timestamp
-        char point[256];
+        char point[320];
         snprintf(point, sizeof(point),
-                 "accelfreq,operation=%s,run_id=%s frequencies=%.6f,x_freq=%.6f,y_freq=%.6f,z_freq=%.6f %llu\n",
-                 operationId, runId,
+                 "accelfreq,operation=%s,device_id=%s,run_id=%s frequencies=%.6f,x_freq=%.6f,y_freq=%.6f,z_freq=%.6f %llu\n",
+                 operationTag.c_str(), deviceTag.c_str(), runTag.c_str(),
                  frequencies[i], xFreq[i], yFreq[i], zFreq[i],
-                 baseTimestampNs + (i * timestampIncrement));
+                 (unsigned long long)(baseTimestampNs + (i * timestampIncrement)));
         
         batch += point;
         batchCount++;
@@ -168,7 +188,8 @@ bool InfluxDBClient::writeFrequencyData(const char* operationId, const char* run
     return true;
 }
 
-bool InfluxDBClient::writeTimeData(const char* operationId, const char* runId,
+bool InfluxDBClient::writeTimeData(const char* operationId, const char* deviceId,
+                                   const char* runId,
                                    const float* x, const float* y, const float* z,
                                    size_t numSamples, uint64_t baseTimestampNs,
                                    float sampleRateHz) {
@@ -182,13 +203,17 @@ bool InfluxDBClient::writeTimeData(const char* operationId, const char* runId,
     
     size_t batchCount = 0;
     
+    String operationTag = escapeTagValue(operationId);
+    String deviceTag = escapeTagValue(deviceId);
+    String runTag = escapeTagValue(runId);
+
     for (size_t i = 0; i < numSamples; i++) {
-        char point[192];
+        char point[256];
         snprintf(point, sizeof(point),
-                 "acceltime,operation=%s,run_id=%s x=%.6f,y=%.6f,z=%.6f %llu\n",
-                 operationId, runId,
+                 "acceltime,operation=%s,device_id=%s,run_id=%s x=%.6f,y=%.6f,z=%.6f %llu\n",
+                 operationTag.c_str(), deviceTag.c_str(), runTag.c_str(),
                  x[i], y[i], z[i],
-                 baseTimestampNs + (i * sampleIntervalNs));
+                 (unsigned long long)(baseTimestampNs + (i * sampleIntervalNs)));
         
         batch += point;
         batchCount++;
@@ -211,6 +236,31 @@ bool InfluxDBClient::writeTimeData(const char* operationId, const char* runId,
     
     Serial.println("[InfluxDB] Time data written successfully");
     return true;
+}
+
+bool InfluxDBClient::writeRunMetadata(const char* operationId, const char* deviceId,
+                                      const char* runId, uint16_t sampleRateHz,
+                                      uint16_t sampleCount, size_t fftSize,
+                                      uint16_t filterCutoffHz, float rangeG,
+                                      bool sendTimeDomain, const char* firmwareVersion,
+                                      uint64_t timestampNs) {
+    String tags = "operation=" + escapeTagValue(operationId);
+    tags += ",device_id=" + escapeTagValue(deviceId);
+    tags += ",run_id=" + escapeTagValue(runId);
+
+    const char* fw = (firmwareVersion && strlen(firmwareVersion) > 0) ? firmwareVersion : "unknown";
+    char fields[320];
+    snprintf(fields, sizeof(fields),
+             "sample_rate_hz=%ui,sample_count=%ui,fft_size=%ui,filter_cutoff_hz=%ui,range_g=%.3f,send_time_domain=%s,window=\"hann\",fw=\"%s\"",
+             sampleRateHz, sampleCount, (unsigned int)fftSize, filterCutoffHz, rangeG,
+             sendTimeDomain ? "true" : "false",
+             fw);
+
+    bool ok = writePoint("accelrunmeta", tags.c_str(), fields, timestampNs);
+    if (ok) {
+        Serial.println("[InfluxDB] Run metadata written successfully");
+    }
+    return ok;
 }
 
 String InfluxDBClient::getLastError() const {

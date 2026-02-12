@@ -79,6 +79,19 @@ public:
      * @return true if access point is active
      */
     bool isAPMode() const;
+
+    /**
+     * @brief Check whether system clock has valid epoch time
+     * @return true when SNTP/RTC time is valid
+     */
+    bool hasValidTime() const;
+
+    /**
+     * @brief Attempt SNTP time synchronization
+     * @param timeoutMs Timeout waiting for sync
+     * @return true if valid time is available after sync attempt
+     */
+    bool syncTime(uint32_t timeoutMs = 8000);
     
 private:
     State _state = State::DISCONNECTED;
@@ -88,10 +101,14 @@ private:
     uint8_t _connectAttempts = 0;
     String _currentSSID;
     String _currentPassword;
+    bool _timeSynced = false;
+    bool _ntpConfigured = false;
+    uint32_t _lastTimeSyncAttemptMs = 0;
     
     void _handleConnection();
     void _startDNS();
     void _stopDNS();
+    void _syncTimeIfNeeded();
 };
 
 // Global instance
