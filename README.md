@@ -111,7 +111,7 @@ pio run --target uploadfs
 | InfluxDB Bucket | expertise | Data bucket |
 | Operation ID | L9OP600 | Equipment operation identifier |
 | Sensitivity | ±2g | Accelerometer range |
-| Sample Count | 4000 | Samples per measurement |
+| Sample Count | 4096 | Samples per measurement (power-of-2 for FFT) |
 | Filter Cutoff | 1600 Hz | Butterworth low-pass filter |
 
 ## 📊 Data Format
@@ -131,7 +131,7 @@ acceltime,operation=L9OP600,device_id=6A4F,run_id=6A4F-1739356800-42 x=0.123,y=0
 ### Run Metadata (`accelrunmeta` measurement)
 
 ```
-accelrunmeta,operation=L9OP600,device_id=6A4F,run_id=6A4F-1739356800-42 sample_rate_hz=3200i,sample_count=4000i,fft_size=4096i,filter_cutoff_hz=1600i,range_g=2.000,send_time_domain=false,window="hann",fw="1.1.0" 1739356800000000000
+accelrunmeta,operation=L9OP600,device_id=6A4F,run_id=6A4F-1739356800-42 sample_rate_hz=3200i,sample_count=4096i,fft_size=4096i,filter_cutoff_hz=1600i,range_g=2.000,send_time_domain=false,window="hann",fw="1.1.0" 1739356800000000000
 ```
 
 `run_id` format is now `<device_id>-<epoch_seconds>-<sequence>`, and timestamps use SNTP-synchronized epoch nanoseconds.

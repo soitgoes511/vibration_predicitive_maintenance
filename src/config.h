@@ -40,7 +40,7 @@ constexpr float ADXL313_SCALE[] = {
 // ============================================================================
 // Sampling Configuration
 // ============================================================================
-#define DEFAULT_SAMPLE_COUNT     4000    // Reduced from 8000 for memory
+#define DEFAULT_SAMPLE_COUNT     4096    // Power-of-2 window for FFT consistency
 #define DEFAULT_SAMPLE_RATE_HZ   3200    // Maximum ADXL313 rate
 #define DEFAULT_FILTER_CUTOFF_HZ 1600    // Nyquist / 2 for anti-aliasing
 
